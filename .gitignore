@@ -1,0 +1,27 @@
+#Build folders
+
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+MakeFile
+
+.DS_Store
+
+#compiled binaries
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.exe
+graphics_rendering
+
+# IDE/Editor settings
+
+.vscode/
+.idea/
+
+# LOgs / temp
+*.log
