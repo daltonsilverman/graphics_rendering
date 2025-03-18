@@ -6,10 +6,59 @@ const int HEIGHT = 640;
 const int XSCALE = 16;
 const int YSCALE = 16;
 
+int transformXCoordinate(int coordinate) {
+    return WIDTH / 2 + (coordinate * (WIDTH/XSCALE));
+}
+
+int transformYCoordinate(int coordinate) {
+    return HEIGHT / 2 + (coordinate * (HEIGHT/YSCALE));
+}
+
 void putPixel(int x, int y, uint32_t color, uint32_t* buffer){
     if(x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
     buffer[y * WIDTH + x] = color;
 }
+
+void putCoordinate(int x, int y, uint32_t color, uint32_t* buffer){
+    x = transformXCoordinate(x);
+    y = transformYCoordinate(y);
+    putPixel(x, y, color, buffer);
+}
+
+void drawLineByPixel(int x0, int y0, int x1, int y1, uint32_t color, uint32_t* buffer){ //Brenesham's Algorithm
+    bool steep = abs(y1 - y0) > abs(x1 - x0);
+
+    if (steep) {
+        std::swap(x0, y0);
+        std::swap(x1, y1);
+    }
+
+    if (x0 > x1) {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+
+    int dx = x1 - x0;
+    int dy = abs(y1 - y0);
+    int decisionParam = 2 * dy - dx;
+    int yStep = (y0 < y1) ? 1 : -1;
+    int y = y0;
+
+    for (int x = x0; x <= x1; ++x) {
+        if (steep) {
+            putPixel(y, x, color, buffer);
+        } else {
+            putPixel(x, y, color, buffer);
+        }
+
+        if (decisionParam > 0) {
+            y += yStep;
+            decisionParam -= 2 * dx;
+        }
+        decisionParam += 2 * dy;
+    }
+}
+
 
 void drawGridLines(uint32_t* buffer){
     for (int x = 0; x < WIDTH; x += WIDTH / XSCALE){
@@ -61,7 +110,7 @@ int main() {
 
     uint32_t* framebuffer = new uint32_t[WIDTH * HEIGHT];
 
-    drawGridLines(framebuffer);
+   /**drawGridLines(framebuffer);
 
     for(int y = 0; y < HEIGHT; ++y) {
         putPixel(WIDTH/2, y, 0xFFFF0000, framebuffer);
@@ -70,6 +119,14 @@ int main() {
     for(int x = 0; x < WIDTH; ++x) {
         putPixel(x, HEIGHT/2, 0xFFFF0000, framebuffer);
     }
+
+    for(int y = -1 * YSCALE; y < YSCALE; ++y) {
+        for(int x = -1 * XSCALE; x < XSCALE; ++x) {
+            putCoordinate(x, y, 0xFF00FF00, framebuffer);
+        }
+    }**/
+
+   drawLineByPixel(300, 420, 132, 200, 0xFFFF0000, framebuffer);
 
 
     bool running = true;
