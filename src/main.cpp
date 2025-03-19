@@ -59,6 +59,14 @@ void drawLineByPixel(int x0, int y0, int x1, int y1, uint32_t color, uint32_t* b
     }
 }
 
+void drawLineByCoordinate(int x0coord, int y0coord, int x1coord, int y1coord, uint32_t color, uint32_t* buffer) {
+    int x0 = transformXCoordinate(x0coord);
+    int x1 = transformXCoordinate(x1coord);
+    int y0 = transformYCoordinate(y0coord);
+    int y1 = transformYCoordinate(y1coord);
+    drawLineByPixel(x0, y0, x1, y1, color, buffer);
+}
+
 
 void drawGridLines(uint32_t* buffer){
     for (int x = 0; x < WIDTH; x += WIDTH / XSCALE){
@@ -110,23 +118,27 @@ int main() {
 
     uint32_t* framebuffer = new uint32_t[WIDTH * HEIGHT];
 
-   /**drawGridLines(framebuffer);
+   //drawGridLines(framebuffer);
 
-    for(int y = 0; y < HEIGHT; ++y) {
+    /**for(int y = 0; y < HEIGHT; ++y) {
         putPixel(WIDTH/2, y, 0xFFFF0000, framebuffer);
     }
 
     for(int x = 0; x < WIDTH; ++x) {
         putPixel(x, HEIGHT/2, 0xFFFF0000, framebuffer);
-    }
+    } */
 
     for(int y = -1 * YSCALE; y < YSCALE; ++y) {
         for(int x = -1 * XSCALE; x < XSCALE; ++x) {
             putCoordinate(x, y, 0xFF00FF00, framebuffer);
         }
-    }**/
+    }
 
-   drawLineByPixel(300, 420, 132, 200, 0xFFFF0000, framebuffer);
+   drawLineByCoordinate(1, -1, 2, 0, 0xFFFF0000, framebuffer);
+   drawLineByCoordinate(3, -1, 2, 0, 0xFFFF0000, framebuffer);
+   drawLineByCoordinate(1, -1, 3, -1, 0xFFFF0000, framebuffer);
+
+   
 
 
     bool running = true;
