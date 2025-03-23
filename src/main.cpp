@@ -1,10 +1,14 @@
 #include <SDL2/SDL.h>
+#include <Eigen/Dense>
 #include <iostream>
 
-const int WIDTH = 1280;
-const int HEIGHT = 640;
-const int XSCALE = 16;
-const int YSCALE = 16;
+constexpr int WIDTH = 1280;
+constexpr int HEIGHT = 640;
+constexpr int XSCALE = 16;
+constexpr int YSCALE = 16;
+constexpr int ASPECT_RATIO = HEIGHT / WIDTH;
+constexpr float PI = 3.14159265358979323846f;
+constexpr int FIELD_OF_VIEW = PI / 3;
 
 int transformXCoordinate(int coordinate) {
     return WIDTH / 2 + (coordinate * (WIDTH/XSCALE));
@@ -80,6 +84,12 @@ void drawGridLines(uint32_t* buffer){
             putPixel(x, y, 0xFF00FF00, buffer);
         }
     }
+}
+
+void drawTriangleFromCoordinates(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color, uint32_t* buffer){
+    drawLineByCoordinate(x0, y0, x1, yt, color, buffer);
+    drawLineByCoordinate(x1, y1, x2, y2, color, buffer);
+    drawLineByCoordinate(x0, y0, x2, y2, color, buffer);
 }
 
 int main() {
