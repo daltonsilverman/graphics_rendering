@@ -13,6 +13,30 @@ constexpr float FIELD_OF_VIEW = PI / 3;
 constexpr float Z_NEAR = 0.1f;
 constexpr float Z_FAR  = 100.0f;
 
+struct Vertex {
+    Eigen::Vector3f position;
+};
+
+struct Edge {
+    int from;
+    int to;
+};
+
+struct Mesh {
+    std::vector<Vertex> vertices;
+    std::vector<Edge> edges;
+};
+
+struct ScreenPoint {
+    int x,y;
+};
+
+struct NDCPoint {
+    float x, y, z;
+};
+
+
+
 
 Eigen::Matrix4f buildPerspectiveProjectionMatrix(float fov, float aspect, float zNear, float zFar) { //Inspired from OpenGL's perspective projection matrix
     float f = 1.0f / tan(fov / 2.0f);
@@ -35,9 +59,9 @@ int NDCtoScreenY(float ndcY){
     return static_cast<int>((1.0f - ndcY) * 0.5f * HEIGHT);
 }
 
-Eigen::Vector2i NDCtoScreen(Eigen::Vector2f ndc){
-    int x = NDCtoScreenX(ndc[0]);
-    int y = NDCtoScreenY(ndc[1]);
+Eigen::Vector2i NDCtoScreen(NDCPoint ndc){
+    int x = NDCtoScreenX(ndc.x);
+    int y = NDCtoScreenY(ndc.y);
     return Eigen::Vector2i(x, y);
 }
 
@@ -94,37 +118,14 @@ void drawLineByPixel(Eigen::Vector2i point1, Eigen::Vector2i point2, uint32_t co
     int x0 = point1[0], y0 = point1[1];
     int x1 = point2[0], y1 = point2[1];
 
-    bool steep = abs(y1 - y0) > abs(x1 - x0);
+    drawLineByPixel(x0, y0, x1, y1, color, buffer);
+}
 
-    if (steep) {
-        std::swap(x0, y0);
-        std::swap(x1, y1);
-    }
+void drawLineByPixel(ScreenPoint point1, ScreenPoint point2, uint32_t color, uint32_t* buffer){
+    int x0 = point1.x, y0 = point1.y;
+    int x1 = point2.x, y1 = point2.y;
 
-    if (x0 > x1) {
-        std::swap(x0, x1);
-        std::swap(y0, y1);
-    }
-
-    int dx = x1 - x0;
-    int dy = abs(y1 - y0);
-    int decisionParam = 2 * dy - dx;
-    int yStep = (y0 < y1) ? 1 : -1;
-    int y = y0;
-
-    for (int x = x0; x <= x1; ++x) {
-        if (steep) {
-            putPixel(y, x, color, buffer);
-        } else {
-            putPixel(x, y, color, buffer);
-        }
-
-        if (decisionParam > 0) {
-            y += yStep;
-            decisionParam -= 2 * dx;
-        }
-        decisionParam += 2 * dy;
-    }
+    drawLineByPixel(x0, y0, x1, y1, color, buffer);
 }
 
 
@@ -167,13 +168,13 @@ int main() {
 
 
     // Define cube vertex positions in model space (centered at origin)
-    std::vector<Eigen::Vector3f> cubeVertices = {
+    std::vector<Eigen::Vector3i> cubeVertices = {
         {-1, -1, -1}, {1, -1, -1}, {1,  1, -1}, {-1,  1, -1},
         {-1, -1,  1}, {1, -1,  1}, {1,  1,  1}, {-1,  1,  1}
     };
 
     // Define which vertex pairs to connect (edges of the cube)
-    std::vector<std::pair<int, int>> cubeEdges = {
+    std::vector<Edge> cubeEdges = {
         {0, 1}, {1, 2}, {2, 3}, {3, 0}, // back face
         {4, 5}, {5, 6}, {6, 7}, {7, 4}, // front face
         {0, 4}, {1, 5}, {2, 6}, {3, 7}  // sides
