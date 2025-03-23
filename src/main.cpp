@@ -1,14 +1,34 @@
 #include <SDL2/SDL.h>
 #include <Eigen/Dense>
 #include <iostream>
+#include <cmath>
 
 constexpr int WIDTH = 1280;
 constexpr int HEIGHT = 640;
 constexpr int XSCALE = 16;
 constexpr int YSCALE = 16;
-constexpr int ASPECT_RATIO = HEIGHT / WIDTH;
+constexpr float ASPECT_RATIO = static_cast<float>(WIDTH) / HEIGHT;
 constexpr float PI = 3.14159265358979323846f;
-constexpr int FIELD_OF_VIEW = PI / 3;
+constexpr float FIELD_OF_VIEW = PI / 3;
+const float FIELD_OF_VIEW_SCALING = 1 / (tan(FIELD_OF_VIEW / 2));
+constexpr float Z_NEAR = 0.1f;
+constexpr float Z_FAR  = 100.0f;
+
+
+Eigen::Matrix4f buildPerspectiveProjectionMatrix(float fov, float aspect, float zNear, float zFar) {
+    float f = 1.0f / tan(fov / 2.0f);
+    Eigen::Matrix4f m = Eigen::Matrix4f::Zero();
+
+    m(0, 0) = f / aspect;
+    m(1, 1) = f;
+    m(2, 2) = (zFar + zNear) / (zNear - zFar);
+    m(2, 3) = (2 * zFar * zNear) / (zNear - zFar);
+    m(3, 2) = -1.0f;
+
+    return m;
+}
+
+
 
 int transformXCoordinate(int coordinate) {
     return WIDTH / 2 + (coordinate * (WIDTH/XSCALE));
@@ -17,6 +37,22 @@ int transformXCoordinate(int coordinate) {
 int transformYCoordinate(int coordinate) {
     return HEIGHT / 2 + (coordinate * (HEIGHT/YSCALE));
 }
+
+Eigen::Vector2i transformCoordinate(Eigen::Vector2i coordinate){
+    int x = transformXCoordinate(coordinate[0]);
+    int y = transformYCoordinate(coordinate[1]);
+    Eigen::Vector2i result(x, y);
+    return result;
+}
+
+Eigen::Vector2i transformCoordinate(int coordX, int coordY){
+    int x = transformXCoordinate(coordX);
+    int y = transformYCoordinate(coordY);
+    Eigen::Vector2i result(x, y);
+    return result;
+}
+
+
 
 void putPixel(int x, int y, uint32_t color, uint32_t* buffer){
     if(x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
@@ -87,7 +123,7 @@ void drawGridLines(uint32_t* buffer){
 }
 
 void drawTriangleFromCoordinates(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color, uint32_t* buffer){
-    drawLineByCoordinate(x0, y0, x1, yt, color, buffer);
+    drawLineByCoordinate(x0, y0, x1, y1, color, buffer);
     drawLineByCoordinate(x1, y1, x2, y2, color, buffer);
     drawLineByCoordinate(x0, y0, x2, y2, color, buffer);
 }
@@ -144,9 +180,55 @@ int main() {
         }
     }
 
-   drawLineByCoordinate(1, -1, 2, 0, 0xFFFF0000, framebuffer);
-   drawLineByCoordinate(3, -1, 2, 0, 0xFFFF0000, framebuffer);
-   drawLineByCoordinate(1, -1, 3, -1, 0xFFFF0000, framebuffer);
+   //drawLineByCoordinate(1, -1, 2, 0, 0xFFFF0000, framebuffer);
+   //drawLineByCoordinate(3, -1, 2, 0, 0xFFFF0000, framebuffer);
+   //drawLineByCoordinate(1, -1, 3, -1, 0xFFFF0000, framebuffer);
+
+// Define cube vertex positions in model space (centered at origin)
+std::vector<Eigen::Vector3f> cubeVertices = {
+    {-1, -1, -1}, {1, -1, -1}, {1,  1, -1}, {-1,  1, -1},
+    {-1, -1,  1}, {1, -1,  1}, {1,  1,  1}, {-1,  1,  1}
+};
+
+// Define which vertex pairs to connect (edges of the cube)
+std::vector<std::pair<int, int>> cubeEdges = {
+    {0, 1}, {1, 2}, {2, 3}, {3, 0}, // back face
+    {4, 5}, {5, 6}, {6, 7}, {7, 4}, // front face
+    {0, 4}, {1, 5}, {2, 6}, {3, 7}  // sides
+};
+
+// Create perspective projection matrix
+Eigen::Matrix4f projection = buildPerspectiveProjectionMatrix(FIELD_OF_VIEW, ASPECT_RATIO, Z_NEAR, Z_FAR);
+
+// Model transform: push the cube back along z-axis
+Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
+model(2, 3) = -5.0f; // Move cube -5 units in z
+
+// Project vertices into screen space
+std::vector<Eigen::Vector2i> projectedPoints;
+for (const auto& v : cubeVertices) {
+    Eigen::Vector4f v4(v[0], v[1], v[2], 1.0f);
+    Eigen::Vector4f projected = projection * model * v4;
+
+    // Perspective divide
+    projected /= projected[3];
+
+    // Map NDC (-1 to 1) to screen coordinates
+    int screenX = static_cast<int>((projected[0] + 1.0f) * 0.5f * WIDTH);
+    int screenY = static_cast<int>((1.0f - projected[1]) * 0.5f * HEIGHT); // flip Y
+
+    projectedPoints.push_back(Eigen::Vector2i(screenX, screenY));
+}
+
+// Draw cube edges
+for (const auto& edge : cubeEdges) {
+    Eigen::Vector2i p0 = projectedPoints[edge.first];
+    Eigen::Vector2i p1 = projectedPoints[edge.second];
+    drawLineByPixel(p0[0], p0[1], p1[0], p1[1], 0xFFFFFFFF, framebuffer); // white lines
+}
+
+
+
 
    
 
