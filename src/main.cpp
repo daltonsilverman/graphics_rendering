@@ -14,7 +14,9 @@ constexpr float Z_NEAR = 0.1f;
 constexpr float Z_FAR  = 100.0f;
 
 struct Vertex {
-    Eigen::Vector3f position;
+    Eigen::Vector4f position;
+
+    Vertex(float x, float y, float z) : position(x, y, z, 1.0f) {}
 };
 
 struct Edge {
@@ -22,23 +24,7 @@ struct Edge {
     int to;
 };
 
-struct Mesh {
-    std::vector<Vertex> vertices;
-    std::vector<Edge> edges;
-};
-
-struct ScreenPoint {
-    int x,y;
-};
-
-struct NDCPoint {
-    float x, y, z;
-};
-
-
-
-
-Eigen::Matrix4f buildPerspectiveProjectionMatrix(float fov, float aspect, float zNear, float zFar) { //Inspired from OpenGL's perspective projection matrix
+Eigen::Matrix4f buildPerspectiveProjectionMatrix(const float fov, const float aspect, const float zNear, const float zFar) { //Inspired from OpenGL's perspective projection matrix
     float f = 1.0f / tan(fov / 2.0f);
     Eigen::Matrix4f m = Eigen::Matrix4f::Zero();
 
@@ -51,21 +37,21 @@ Eigen::Matrix4f buildPerspectiveProjectionMatrix(float fov, float aspect, float 
     return m;
 }
 
-int NDCtoScreenX(float ndcX) {
+int NDCtoScreenX(const float ndcX) {
     return static_cast<int>((ndcX + 1.0f) * 0.5f * WIDTH);
 }
 
-int NDCtoScreenY(float ndcY){
+int NDCtoScreenY(const float ndcY){
     return static_cast<int>((1.0f - ndcY) * 0.5f * HEIGHT);
 }
 
-Eigen::Vector2i NDCtoScreen(NDCPoint ndc){
-    int x = NDCtoScreenX(ndc.x);
-    int y = NDCtoScreenY(ndc.y);
+Eigen::Vector2i NDCtoScreen(const Eigen::Vector3f& ndc){
+    int x = NDCtoScreenX(ndc[0]);
+    int y = NDCtoScreenY(ndc[1]);
     return Eigen::Vector2i(x, y);
 }
 
-Eigen::Vector2i NDCtoScreen(float ndcX, float ndcY){
+Eigen::Vector2i NDCtoScreen(const float ndcX, const float ndcY){
     int x = NDCtoScreenX(ndcX);
     int y = NDCtoScreenY(ndcY);
     return Eigen::Vector2i(x, y);
@@ -73,13 +59,13 @@ Eigen::Vector2i NDCtoScreen(float ndcX, float ndcY){
 
 
 
-void putPixel(int x, int y, uint32_t color, uint32_t* buffer){
+void putPixel(const int x, const int y, const uint32_t color, uint32_t* buffer){
     if(x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
     buffer[y * WIDTH + x] = color;
 }
 
 
-void drawLineByPixel(int x0, int y0, int x1, int y1, uint32_t color, uint32_t* buffer){ //Brenesham's Algorithm
+void drawLineByPixel(int x0, int y0, int x1, int y1, const uint32_t color, uint32_t* buffer){ //Brenesham's Algorithm
     bool steep = abs(y1 - y0) > abs(x1 - x0);
 
     if (steep) {
@@ -113,7 +99,7 @@ void drawLineByPixel(int x0, int y0, int x1, int y1, uint32_t color, uint32_t* b
     }
 }
 
-void drawLineByPixel(Eigen::Vector2i point1, Eigen::Vector2i point2, uint32_t color, uint32_t* buffer){ //Brenesham's Algorithm
+void drawLineByPixel(const Eigen::Vector2i point1, const Eigen::Vector2i point2, const uint32_t color, uint32_t* buffer){ //Brenesham's Algorithm
 
     int x0 = point1[0], y0 = point1[1];
     int x1 = point2[0], y1 = point2[1];
@@ -121,12 +107,62 @@ void drawLineByPixel(Eigen::Vector2i point1, Eigen::Vector2i point2, uint32_t co
     drawLineByPixel(x0, y0, x1, y1, color, buffer);
 }
 
-void drawLineByPixel(ScreenPoint point1, ScreenPoint point2, uint32_t color, uint32_t* buffer){
-    int x0 = point1.x, y0 = point1.y;
-    int x1 = point2.x, y1 = point2.y;
 
-    drawLineByPixel(x0, y0, x1, y1, color, buffer);
+Eigen::Matrix4f modelToProjectionMatrix(const Eigen::Matrix4f& model, const Eigen::Matrix4f& view, const Eigen::Matrix4f& projection){
+    return projection * view * model;
 }
+
+class Mesh {
+public:
+    std::vector<Vertex> vertices;
+    std::vector<Edge> edges;
+
+    Mesh(const std::vector<Vertex>& v, const std::vector<Edge>& e) : vertices(v), edges(e) {}
+
+    void applyTransformation(const Eigen::Matrix4f& transformation){
+        for(auto& vertex : vertices) {
+            vertex.position = transformation * vertex.position;
+        }
+    }
+
+    void draw(const uint32_t color, uint32_t* buffer, const Eigen::Matrix4f& model, const Eigen::Matrix4f& view, const Eigen::Matrix4f& projection){
+        std::vector<Eigen::Vector2i screenPoints = modelVerticesToScreen(model, view, projection);
+        drawEdges(screenPoints, color, buffer);
+    }
+
+
+private:
+
+    std::vector<Eigen::Vector2i> modelVerticesToScreen(const Eigen::Matrix4f& model, const Eigen::Matrix4f& view, const Eigen::Matrix4f& projection){
+
+        Eigen::Matrix4f modelToProjection = modelToProjectionMatrix(model, view, projection);
+        std::vector<Eigen::Vector2i> screenPoints;
+
+        for(const auto& v: vertices){
+            Eigen::Vector4f projected = modelToProjection * v.position;
+
+            //Perspective divide
+            projected /= projected[3];
+
+            Eigen::Vector2i screenPoint = NDCtoScreen(projected[0], projected[1]);
+
+            screenPoints.push_back(screenPoint);
+        }
+
+        return screenPoints;
+    }
+
+    void drawEdges(const std::vector<Eigen::Vector2i>& screenPoints, uint32_t color, uint32_t* buffer){
+        for(const auto& e: edges){
+            Eigen::Vector2i p0 = screenPoints[e.from];
+            Eigen::Vector2i p1 = screenPoints[e.to];
+            drawLineByPixel(p0, p1, color, buffer);
+        }
+    }
+
+
+
+};
 
 
 int main() {
@@ -168,7 +204,7 @@ int main() {
 
 
     // Define cube vertex positions in model space (centered at origin)
-    std::vector<Eigen::Vector3i> cubeVertices = {
+    std::vector<Vertex> cubeVertices = {
         {-1, -1, -1}, {1, -1, -1}, {1,  1, -1}, {-1,  1, -1},
         {-1, -1,  1}, {1, -1,  1}, {1,  1,  1}, {-1,  1,  1}
     };
@@ -180,38 +216,20 @@ int main() {
         {0, 4}, {1, 5}, {2, 6}, {3, 7}  // sides
     };
 
+    Mesh cube = {cubeVertices, cubeEdges};
+
     // Create perspective projection matrix
     Eigen::Matrix4f projection = buildPerspectiveProjectionMatrix(FIELD_OF_VIEW, ASPECT_RATIO, Z_NEAR, Z_FAR);
+
+    Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
 
     // Model transform: push the cube back along z-axis
     Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
     model(2, 3) = -5.0f; // Move cube -5 units in z
 
-    // Project vertices into screen space
-    std::vector<Eigen::Vector2i> projectedPoints;
-    for (const auto& v : cubeVertices) {
-        Eigen::Vector4f v4(v[0], v[1], v[2], 1.0f);
-        Eigen::Vector4f projected = projection * model * v4;
+    std::vector<Eigen::Vector2i> screenVertices = modelVerticesToScreen(cube.vertices, model, view, projection);
 
-        // Perspective divide
-        projected /= projected[3];
-
-        Eigen::Vector2i screenPoints = NDCtoScreen(projected[0], projected[1]);
-
-        projectedPoints.push_back(screenPoints);
-    }
-
-    // Draw cube edges
-    for (const auto& edge : cubeEdges) {
-        Eigen::Vector2i p0 = projectedPoints[edge.first];
-        Eigen::Vector2i p1 = projectedPoints[edge.second];
-        drawLineByPixel(p0, p1, 0xFFFFFFFF, framebuffer); // white lines
-    }
-
-
-
-
-   
+    drawEdges(screenVertices, cube.edges, framebuffer);
 
 
     bool running = true;
