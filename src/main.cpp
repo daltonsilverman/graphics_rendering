@@ -2,6 +2,9 @@
 #include <Eigen/Dense>
 #include <iostream>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 constexpr int WIDTH = 1280;
 constexpr int HEIGHT = 640;
@@ -163,6 +166,68 @@ private:
 
 
 };
+
+Mesh objModelParser(const std::string& filename){
+    std::ifstream file(filename);
+    std::vector<Vertex> meshVertices;
+    std::vector<Edge> meshEdges;
+
+    if(!file){
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return Mesh();
+    }
+
+    std::string line;
+    while (std::getline(file, line)){
+        std::istringstream stream(line);
+        std::string firstWord;
+        float x, y, z;
+
+        if(!(stream >> firstWord)) continue; //Skip empty lines
+
+        if (firstWord == "v") { //vertex command
+            if (stream >> x >> y >> z){
+                meshVertices.emplace_back(x, y, z);
+            } else {
+                std::cerr << "Invalid vertex command call in line: " << line << std::endl;
+            }
+        } else if (firstWord == "f") { //face command
+            std::vector<int> faceIndices;
+            int index;
+
+            while (stream >> index) {
+                if(index < 1 || index > meshVertices.size()){ //Boundary checking knowing .obj vertices start at 1
+                    std::cerr << "invalid vertex index: " << index << "On face call in line: " << line << std::endl;
+                    continue;
+                } 
+            }
+
+            if (faceIndices.size() < 3) {
+                std::cerr << "Invalid face command call in line: " << line << std::endl;
+                continue;
+            }
+
+            //Create triangles
+            for (size_t i = 1; i + 1 < faceIndices.size(); i++) {
+                int v1 = faceIndices[0];
+                int v2 = faceIndices[i];
+                int v3 = faceIndices[i + 1];
+
+                if (v1 >= 0 && v2 >= 0 && v3 >= 0 &&
+                v1 < meshVertices.size() && v2 < meshVertices.size() && v3 < meshVertices.size()) {
+                    meshEdges.push_back({v1, v2});
+                    meshEdges.push_back({v2, v3});
+                    meshEdges.push_back({v3, v1});
+                } else {
+                    std::cerr << "Face index out of bounds in line: " << line << std::endl;
+                }
+            }
+        }   
+    }
+
+    file.close();
+    return Mesh(meshVertices, meshEdges);
+}
 
 
 int main() {
